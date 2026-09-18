@@ -1,10 +1,41 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework import status
+
+
+from .serializers import EnergyRequestSerializer
+
 
 from .llm.llm_client import ask_llm
 from .llm.validator import validate_directive
 
 from .solver.engine import solve
+
+from django.shortcuts import render
+def dashboard(request):
+
+    return render(
+        request,
+        "dashboard.html"
+    )
+
+@api_view(['GET'])
+def home(request):
+
+    return Response({
+
+        "project":
+        "GridWise LLM",
+
+        "status":
+        "running",
+
+        "apis":[
+            "/health",
+            "/optimize-energy"
+        ]
+
+    })
 
 
 
@@ -12,7 +43,9 @@ from .solver.engine import solve
 def health(request):
 
     return Response({
-        "status": "ok"
+
+        "status":"ok"
+
     })
 
 
@@ -20,55 +53,69 @@ def health(request):
 @api_view(['POST'])
 def optimize_energy(request):
 
-    data = request.data
 
-
-    # -----------------------------
-    # 1. Convert operator notes
-    #    into structured directives
-    # -----------------------------
-
-    directives = []
-
-
-    notes = data.get(
-        "operator_notes",
-        []
+    serializer = EnergyRequestSerializer(
+        data=request.data
     )
 
 
-    for index, note in enumerate(notes):
+    if not serializer.is_valid():
+
+        return Response(
+
+            {
+                "error":
+                serializer.errors
+            },
+
+            status=status.HTTP_400_BAD_REQUEST
+
+        )
+
+
+
+    data = serializer.validated_data
+
+
+
+    directives=[]
+
+
+
+    for note in data.get(
+        "operator_notes",
+        []
+    ):
+
 
         result = ask_llm(note)
 
 
-        valid, message = validate_directive(result)
+        valid,msg = validate_directive(
+            result
+        )
 
 
         directives.append({
 
-            "note_index": index,
+            "directive_type":
+            result["type"],
 
-            "original_note": note,
 
-            "valid": valid,
+            "structured_adjustment":
+            result,
 
-            "validation_message": message,
 
-            "directive_type": result.get(
-                "type",
-                "no_op"
-            ),
+            "valid":
+            valid,
 
-            "structured_adjustment": result
+
+            "message":
+            msg
 
         })
 
 
-
-    # -----------------------------
-    # 2. Optimization Engine
-    # -----------------------------
 
     plan = solve(
         data,
@@ -76,69 +123,35 @@ def optimize_energy(request):
     )
 
 
-
-    # -----------------------------
-    # 3. Summary calculation
-    # -----------------------------
-
-    total_grid = sum(
-        item["grid_kwh"]
-        for item in plan
+    total_grid=sum(
+        x["grid_kwh"]
+        for x in plan
     )
 
-
-    peak_grid = max(
-        item["grid_kwh"]
-        for item in plan
-    )
-
-
-
-    electricity_price = 12
-
-
-    total_cost = (
-        total_grid *
-        electricity_price
-    )
-
-
-
-    # -----------------------------
-    # 4. Final Response
-    # -----------------------------
 
     return Response({
 
         "scenario_id":
-            data.get("scenario_id"),
+        data.get("scenario_id"),
 
 
         "directive_interpretation":
-            directives,
+        directives,
 
 
         "hourly_plan":
-            plan,
+        plan,
 
 
-        "summary": {
+        "summary":{
 
             "total_grid_kwh":
-                total_grid,
+            total_grid,
 
 
-            "electricity_cost_bdt":
-                total_cost,
+            "total_cost_bdt":
+            total_grid*12
 
-
-            "peak_grid_kwh":
-                peak_grid
-
-        },
-
-
-        "message":
-            "Optimization completed successfully"
+        }
 
     })

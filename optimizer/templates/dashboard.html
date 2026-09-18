@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>
+GridWise LLM Dashboard
+</title>
+
+<link rel="stylesheet" href="/static/style.css">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+
+
+<body>
+
+
+<div class="container">
+
+
+<h1>
+⚡ GridWise LLM
+</h1>
+
+<p>
+AI Powered Campus Energy Optimization
+</p>
+
+
+<div class="card">
+
+
+<h2>
+Operator Instruction
+</h2>
+
+
+<textarea id="note">
+
+Solar generation will decrease by 40% from 1 PM to 3 PM
+
+</textarea>
+
+
+<button onclick="optimize()">
+Optimize Energy
+</button>
+
+
+</div>
+
+
+
+<div class="card">
+
+
+<h2>
+AI Interpretation
+</h2>
+
+<pre id="directive">
+Waiting...
+</pre>
+
+
+</div>
+
+
+
+
+<div class="card">
+
+
+<h2>
+Optimization Summary
+</h2>
+
+
+<p>
+Grid Energy:
+<span id="grid">
+-
+</span>
+kWh
+</p>
+
+
+<p>
+Cost:
+<span id="cost">
+-
+</span>
+BDT
+</p>
+
+
+</div>
+
+
+
+
+<div class="card">
+
+
+<h2>
+24 Hour Energy Schedule
+</h2>
+
+
+<table>
+
+<thead>
+
+<tr>
+
+<th>
+Hour
+</th>
+
+<th>
+Grid
+</th>
+
+<th>
+Solar
+</th>
+
+<th>
+Battery
+</th>
+
+<th>
+Action
+</th>
+
+</tr>
+
+</thead>
+
+
+<tbody id="table">
+
+</tbody>
+
+
+</table>
+
+
+</div>
+
+
+
+<div class="card">
+
+
+<h2>
+Battery Level
+</h2>
+
+
+<canvas id="batteryChart"></canvas>
+
+
+</div>
+
+
+</div>
+
+
+
+
+
+<script>
+
+
+async function optimize(){
+
+
+let note =
+document.getElementById(
+"note"
+).value;
+
+
+
+let response =
+await fetch(
+"/optimize-energy",
+{
+
+method:"POST",
+
+headers:
+{
+"Content-Type":"application/json"
+},
+
+
+body:
+JSON.stringify({
+
+scenario_id:"demo",
+
+demand:[
+100,120,150,140
+],
+
+solar:[
+80,70,60,50
+],
+
+
+operator_notes:[
+note
+]
+
+
+})
+
+
+});
+
+
+let data =
+await response.json();
+
+
+
+document.getElementById(
+"directive"
+).textContent =
+JSON.stringify(
+data.directive_interpretation,
+null,
+2
+);
+
+
+
+document.getElementById(
+"grid"
+).textContent =
+data.summary.total_grid_kwh;
+
+
+
+document.getElementById(
+"cost"
+).textContent =
+data.summary.total_cost_bdt;
+
+
+
+
+let rows="";
+
+let battery=[];
+
+
+data.hourly_plan.forEach(
+item=>{
+
+
+rows += `
+
+<tr>
+
+<td>${item.hour}</td>
+
+<td>${item.grid_kwh}</td>
+
+<td>${item.solar_used_kwh}</td>
+
+<td>${item.battery_kwh}</td>
+
+<td>${item.battery_action}</td>
+
+</tr>
+
+
+`;
+
+
+battery.push(
+item.battery_kwh
+);
+
+
+});
+
+
+document.getElementById(
+"table"
+).innerHTML =
+rows;
+
+
+
+new Chart(
+
+document.getElementById(
+"batteryChart"
+),
+
+{
+
+type:"line",
+
+data:
+{
+
+labels:
+battery.map(
+(_,i)=>i
+),
+
+datasets:
+[{
+
+label:
+"Battery kWh",
+
+data:
+battery
+
+}]
+
+}
+
+}
+
+);
+
+
+}
+
+
+</script>
+
+
+</body>
+
+</html>
