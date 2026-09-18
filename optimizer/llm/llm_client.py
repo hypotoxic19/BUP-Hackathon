@@ -1,24 +1,23 @@
 import os
 import json
+import google.generativeai as genai
 
-from pathlib import Path
 from dotenv import load_dotenv
-from openai import OpenAI
 
 from .prompt import SYSTEM_PROMPT
 from .interpreter import interpret_notes
 
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-
-load_dotenv(BASE_DIR / ".env")
+load_dotenv()
 
 
-api_key = os.getenv("OPENAI_API_KEY")
+genai.configure(
+    api_key=os.getenv("GEMINI_API_KEY")
+)
 
 
-client = OpenAI(
-    api_key=api_key
+model = genai.GenerativeModel(
+    "gemini-2.5-flash"
 )
 
 
@@ -27,43 +26,40 @@ def ask_llm(note):
 
     try:
 
-        response = client.chat.completions.create(
+        prompt = f"""
 
-            model="gpt-4o-mini",
+{SYSTEM_PROMPT}
 
-            temperature=0,
 
-            messages=[
+Operator instruction:
 
-                {
-                    "role":"system",
-                    "content":SYSTEM_PROMPT
-                },
+{note}
 
-                {
-                    "role":"user",
-                    "content":note
-                }
 
-            ]
+Return ONLY JSON.
+No explanation.
 
+"""
+
+
+        response = model.generate_content(
+            prompt
         )
 
 
-        output = response.choices[0].message.content
+        text = response.text.strip()
 
 
-        return json.loads(output)
+        return json.loads(text)
 
 
 
     except Exception as e:
 
-        print("⚠️ LLM unavailable")
-        print("Using rule-based fallback")
+
+        print(
+            "Gemini unavailable, using fallback"
+        )
 
 
-        fallback = interpret_notes([note])
-
-
-        return fallback[0]["structured_adjustment"]
+        return interpret_notes([note])[0]["structured_adjustment"]
